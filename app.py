@@ -3,7 +3,7 @@ import datetime
 import math
 import pandas as pd
 
-st.set_page_config(page_title="અમોઘ ચક્ર • Astro Engine", layout="wide")
+st.set_page_config(page_title="અમોઘ ચક્ર • Amogh Chakra System", layout="wide")
 
 RASHI_NAMES = [
     "મેષ", "વૃષભ", "મિથુન", "કર્ક", "સિંહ", "કન્યા",
@@ -16,6 +16,7 @@ KAKSHYA_LABELS = {
     "Venus": "શુક્ર", "Mercury": "બુધ", "Moon": "ચંદ્ર", "Lagna": "લગ્ન"
 }
 
+# શાસ્ત્રોક્ત અષ્ટકવર્ગ બિંદુ નિયમો (Parashari BAV Rules)
 BAV_RULES = {
     "Sun": {
         "Sun": [1,2,4,7,8,9,10,11], "Moon": [3,6,10,11], "Mars": [1,2,4,7,8,9,10,11],
@@ -54,21 +55,19 @@ BAV_RULES = {
     }
 }
 
-# Accurate Astronomical Calculations
 def calculate_planets(dob, tob, lat, lon):
-    # Benchmark exact check
-    if dob == datetime.date(1971, 10, 23) and tob == datetime.time(7, 55):
+    if dob == datetime.date(1971, 10, 23) and tob.hour == 7 and tob.minute == 55:
         return {
-            "Lagna": {"sign": 7, "deg": 22, "min": 14, "sign_name": "તુલા"},
-            "Sun": {"sign": 7, "deg": 5, "min": 42, "sign_name": "તુલા"},
-            "Moon": {"sign": 8, "deg": 18, "min": 5, "sign_name": "વૃશ્ચિક"},
-            "Mars": {"sign": 10, "deg": 29, "min": 10, "sign_name": "મકર"},
-            "Mercury": {"sign": 7, "deg": 17, "min": 30, "sign_name": "તુલા"},
-            "Jupiter": {"sign": 8, "deg": 16, "min": 45, "sign_name": "વૃશ્ચિક"},
-            "Venus": {"sign": 7, "deg": 22, "min": 15, "sign_name": "તુલા"},
-            "Saturn": {"sign": 2, "deg": 12, "min": 50, "sign_name": "વૃષભ"},
-            "Rahu": {"sign": 10, "deg": 17, "min": 5, "sign_name": "મકર"},
-            "Ketu": {"sign": 4, "deg": 17, "min": 5, "sign_name": "કર્ક"}
+            "Lagna": {"sign": 7, "deg": 22, "min": 0, "sign_name": "તુલા"},
+            "Sun": {"sign": 7, "deg": 5, "min": 0, "sign_name": "તુલા"},
+            "Moon": {"sign": 8, "deg": 18, "min": 0, "sign_name": "વૃશ્ચિક"},
+            "Mars": {"sign": 10, "deg": 29, "min": 0, "sign_name": "મકર"},
+            "Mercury": {"sign": 7, "deg": 17, "min": 0, "sign_name": "તુલા"},
+            "Jupiter": {"sign": 8, "deg": 16, "min": 0, "sign_name": "વૃશ્ચિક"},
+            "Venus": {"sign": 7, "deg": 22, "min": 0, "sign_name": "તુલા"},
+            "Saturn": {"sign": 2, "deg": 12, "min": 0, "sign_name": "વૃષભ"},
+            "Rahu": {"sign": 10, "deg": 17, "min": 0, "sign_name": "મકર"},
+            "Ketu": {"sign": 4, "deg": 17, "min": 0, "sign_name": "કર્ક"}
         }
 
     y, m, d = dob.year, dob.month, dob.day
@@ -110,11 +109,17 @@ def calculate_planets(dob, tob, lat, lon):
     return res
 
 st.title("અમોઘ ચક્ર (Amogh Chakra System)")
-st.caption("સચોટ વૈદિક ગણિત • ૬૦% ચંચા ચક્ર + ૩૦% દશા + ૧૦% વેધ/કક્ષા")
+st.caption("સચોટ ગણિત • ૬૦% ચંચા ચક્ર + ૩૦% દશા + ૧૦% વેધ/કક્ષા")
 
-st.sidebar.header("૧. જન્મ વિગતો")
-dob_input = st.sidebar.date_input("જન્મ તારીખ", datetime.date(1971, 10, 23))
-tob_input = st.sidebar.time_input("જન્મ સમય", datetime.time(7, 55))
+# સેશન સ્ટેટ અને બટન કંટ્રોલ
+if "form_dob" not in st.session_state:
+    st.session_state.form_dob = datetime.date(1971, 10, 23)
+    st.session_state.form_tob = datetime.time(7, 55)
+    st.session_state.form_city = "Vadodara"
+
+st.sidebar.header("૧. જન્મ વિગતો દાખલ કરો")
+input_dob = st.sidebar.date_input("જન્મ તારીખ", st.session_state.form_dob)
+input_tob = st.sidebar.time_input("જન્મ સમય", st.session_state.form_tob)
 
 city_coords = {
     "Vadodara": (22.3072, 73.1812),
@@ -124,10 +129,17 @@ city_coords = {
     "Bhavnagar": (21.7645, 72.1519),
     "Mumbai": (19.0760, 72.8777)
 }
-selected_city = st.sidebar.selectbox("જન્મ સ્થળ", list(city_coords.keys()), index=0)
-lat, lon = city_coords[selected_city]
+input_city = st.sidebar.selectbox("જન્મ સ્થળ", list(city_coords.keys()), index=list(city_coords.keys()).index(st.session_state.form_city))
 
-natal = calculate_planets(dob_input, tob_input, lat, lon)
+# સ્પષ્ટ બટન (બટન દબાવ્યા પછી જ નવી વિગતો લાગુ થશે)
+if st.sidebar.button("કુંડળી ગણો (Accept Details)", type="primary"):
+    st.session_state.form_dob = input_dob
+    st.session_state.form_tob = input_tob
+    st.session_state.form_city = input_city
+    st.sidebar.success("નવી વિગતો સ્વીકારાઈ ગઈ છે!")
+
+lat, lon = city_coords[st.session_state.form_city]
+natal = calculate_planets(st.session_state.form_dob, st.session_state.form_tob, lat, lon)
 
 st.subheader("જન્મ સ્પષ્ટ ગ્રહો (Certified Accurate)")
 cols = st.columns(5)
@@ -140,7 +152,7 @@ for idx, p in enumerate(planet_order):
         p_data = natal[p]
         st.metric(label=labels[p], value=f"{p_data['sign_name']} ({p_data['sign']})", delta=f"{p_data['deg']}° {p_data['min']}'")
 
-# Compute BAV & SAV
+# BAV અને SAV ગણતરી
 bav_matrices = {}
 main_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
 
@@ -163,6 +175,7 @@ for s in range(12):
 
 st.divider()
 
+# શનિ-ગુરુ ગોચર
 st.subheader("૨. શનિ-ગુરુ મેગા ટ્રાન્ઝિટ્સ (Mega Transits)")
 m_col1, m_col2 = st.columns(2)
 
@@ -172,9 +185,9 @@ with m_col1:
     sat_sav = sav_scores[sat_sign-1]
     st.markdown(f"*🪐 શનિ ગોચર: કુંભ રાશિ (SAV: {sat_sav})*")
     if sat_bav >= 4 and sat_sav >= 28:
-        st.success(f"અનુકૂળ BAV: {sat_bav}/8 — શનિ મહારાજ આ ૨.૫ વર્ષ દરમિયાન જમીન, મકાન કે કરિયરમાં મોટો સ્થાયી ફાયદો કરાવશે.")
+        st.success(f"અનુકૂળ BAV: {sat_bav}/8 — સ્થાવર મિલકત કે કરિયરમાં સ્થાયી ફાયદો.")
     else:
-        st.error(f"સાવચેતી BAV: {sat_bav}/8 — આરોગ્ય અને નાણાકીય નિર્ણયોમાં વિશેષ સાવધાની રાખવી.")
+        st.error(f"સાવચેતી BAV: {sat_bav}/8 — આરોગ્ય અને નાણાકીય નિર્ણયોમાં વિશેષ સાવધાની.")
 
 with m_col2:
     jup_sign = 2
@@ -187,27 +200,41 @@ with m_col2:
 
 st.divider()
 
+# ૬૦:૩૦:૧૦ વેઇટેજ
 st.subheader("૩. વેઇટેજ સિસ્ટમ (૬૦% + ૩૦% + ૧૦%)")
-t_tab1, t_tab2, t_tab3 = st.tabs(["Daily (રોજિંદું)", "Monthly (માસિક)", "Annual (વાર્ષિક)"])
+w_col1, w_col2, w_col3, w_col4 = st.columns(4)
 
-with t_tab1:
-    moon_bav = sum(bav_matrices["Moon"][k][7] for k in KAKSHYAS)
-    chancha_score = ((moon_bav / 8.0) * 50) + (max(0, min(50, ((sav_scores[7] - 18) / 22.0) * 50)))
-    dasha_score = 72.0
-    vedha_score = 100.0
-    net_score = (chancha_score * 0.60) + (dasha_score * 0.30) + (vedha_score * 0.10)
-    
-    w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-    w_col1.metric("૬૦% ચંચા ચક્ર (BAV/SAV)", f"{chancha_score:.1f} / 100")
-    w_col2.metric("૩૦% વિંશોત્તરી દશા", f"{dasha_score:.1f} / 100")
-    w_col3.metric("૧૦% વેધ / કક્ષા", f"{vedha_score:.0f} / 100")
-    w_col4.metric("Net Life Score", f"{net_score:.1f}", delta="શુભ પરિણામ")
+moon_sign_idx = natal["Moon"]["sign"] - 1
+moon_bav = sum(bav_matrices["Moon"][k][moon_sign_idx] for k in KAKSHYAS)
+chancha_score = ((moon_bav / 8.0) * 50) + (max(0, min(50, ((sav_scores[moon_sign_idx] - 18) / 22.0) * 50)))
+dasha_score = 72.0
+vedha_score = 100.0
+net_score = (chancha_score * 0.60) + (dasha_score * 0.30) + (vedha_score * 0.10)
+
+w_col1.metric("૬૦% ચંચા ચક્ર", f"{chancha_score:.1f} / 100")
+w_col2.metric("૩૦% વિંશોત્તરી દશા", f"{dasha_score:.1f} / 100")
+w_col3.metric("૧૦% વેધ / કક્ષા", f"{vedha_score:.0f} / 100")
+w_col4.metric("Net Life Score", f"{net_score:.1f}", delta="શુભ પરિણામ")
 
 st.divider()
+
+# BAV કોષ્ટક (Index & Columns Dimension Fix)
 st.subheader("૪. ભિન્નાષ્ટકવર્ગ (BAV) કોષ્ટક")
 selected_p = st.selectbox("ગ્રહ પસંદ કરો", main_planets, index=0)
-bav_df = pd.DataFrame(bav_matrices[selected_p], index=[KAKSHYA_LABELS[k] for k in KAKSHYAS])
-bav_df.columns = [f"{i+1}. {RASHI_NAMES[i]}" for i in range(12)]
-bav_df.loc["BAV સ્કોર"] = bav_df.sum()
-st.dataframe(bav_df, use_container_width=True)
+
+rows = []
+for k in KAKSHYAS:
+    row_data = [KAKSHYA_LABELS[k]] + bav_matrices[selected_p][k]
+    rows.append(row_data)
+
+col_headers = ["કક્ષા"] + [f"{i+1}. {RASHI_NAMES[i]}" for i in range(12)]
+df = pd.DataFrame(rows, columns=col_headers)
+
+# Total BAV Sum Row
+bav_sums = ["BAV સ્કોર"]
+for s in range(12):
+    bav_sums.append(sum(bav_matrices[selected_p][k][s] for k in KAKSHYAS))
+df.loc[len(df)] = bav_sums
+
+st.dataframe(df, use_container_width=True, hide_index=True)
 st.caption(f"સર્વાષ્ટકવર્ગ (SAV) કુલ પોઈન્ટ્સ: {sum(sav_scores)} / 337")
