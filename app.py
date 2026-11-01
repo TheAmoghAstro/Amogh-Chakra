@@ -16,8 +16,8 @@ def check_password():
     st.sidebar.title("🔐 Login / Authentication")
     user_pass = st.sidebar.text_input("Enter Password", type="password")
     
-    # Tamaro manpasand password ahi set karo (udaharana tarike: "Amogh@123")
-    CORRECT_PASSWORD = "Amogh@123"
+    # Tamaro manpasand password ahi set karo (udaharana tarike: "Amogh@1611")
+    CORRECT_PASSWORD = "Amogh@1611"
 
     if st.sidebar.button("Login", type="primary"):
         if user_pass == CORRECT_PASSWORD:
