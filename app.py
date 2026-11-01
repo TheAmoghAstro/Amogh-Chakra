@@ -70,7 +70,6 @@ def get_accurate_ephem_chart(dob, tob, lat, lon):
     jd = ephem.julian_date(obs.date)
     t = (jd - 2451545.0) / 36525.0
     
-    # Authentic Indian Astronomical Ephemeris Lahiri Ayanamsha
     ayanamsha_deg = 23.85694 + 1.396042 * t + 0.000308 * (t ** 2)
 
     def to_nirayana(tropical_lon_deg):
@@ -86,8 +85,7 @@ def get_accurate_ephem_chart(dob, tob, lat, lon):
             "sign_name": RASHI_NAMES[sign_idx - 1].split()[0]
         }
 
-    # Standard Ascendant (Lagna) Formula
-    ramc = float(obs.sidereal_time()) # in radians
+    ramc = float(obs.sidereal_time())
     eps = math.radians(23.4392911 - 0.0130042 * t)
     lat_r = math.radians(lat)
     
@@ -97,7 +95,6 @@ def get_accurate_ephem_chart(dob, tob, lat, lon):
     sin_eps = math.sin(eps)
     cos_eps = math.cos(eps)
     
-    # Authentic Ascendant equation
     y = cos_ramc
     x = -(sin_ramc * cos_eps + tan_lat * sin_eps)
     asc_rad = math.atan2(y, x)
@@ -120,7 +117,6 @@ def get_accurate_ephem_chart(dob, tob, lat, lon):
         lon_deg = math.degrees(float(ecl.lon)) % 360.0
         natal[name] = to_nirayana(lon_deg)
 
-    # Accurate Rahu (True Mean Node)
     d = jd - 2451545.0
     omega = (125.04452 - 1934.136261 * (d / 36525.0)) % 360.0
     natal["Rahu"] = to_nirayana(omega)
@@ -153,7 +149,11 @@ natal = get_accurate_ephem_chart(dob_val, tob_val, lat, lon)
 st.subheader("1. Spashta Graha Sthiti")
 cols = st.columns(5)
 planet_order = ["Lagna", "Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
-labels = {"Lagna":"Lagna", "Sun":"Surya", "Moon":"Chandra", "Mars":"Mangal", "Mercury":"Budh", "Jupiter":"Guru", "Venus":"Shukra", "Saturn":"Shani", "Rahu":"Rahu", "Ketu":"Ketu"}
+labels = {
+    "Lagna": "Lagna", "Sun": "Surya", "Moon": "Chandra", "Mars": "Mangal",
+    "Mercury": "Budh", "Jupiter": "Guru", "Venus": "Shukra", "Saturn": "Shani",
+    "Rahu": "Rahu", "Ketu": "Ketu"
+}
 
 for idx, p in enumerate(planet_order):
     c = cols[idx % 5]
@@ -161,7 +161,6 @@ for idx, p in enumerate(planet_order):
         p_data = natal[p]
         st.metric(label=labels[p], value=f"{p_data['sign_name']} ({p_data['sign']})", delta=f"{p_data['deg']}° {p_data['min']}'")
 
-# Compute BAV & SAV
 bav_matrices = {}
 main_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
 
@@ -184,7 +183,6 @@ for s in range(12):
 
 st.divider()
 
-# Section 2: Gochar Selection
 st.subheader("2. Live / Manual Gochar (Transit) Selection")
 t_cols1 = st.columns(4)
 t_cols2 = st.columns(4)
@@ -209,9 +207,8 @@ with t_cols2[3]:
 
 st.divider()
 
-# Section 3: Predictions
 st.subheader("3. 60:30:10 Weightage & Timeline Predictions")
-tab_daily, tab_monthly, tab_yearly = st.tabs(["📅 Daily Prediction", "🌙 Monthly Prediction", "🗓️ Annual / Yearly Prediction"])
+tab_daily, tab_monthly, tab_yearly = st.tabs(["Daily Prediction", "Monthly Prediction", "Annual / Yearly Prediction"])
 
 with tab_daily:
     m_s = g_moon - 1
@@ -222,8 +219,81 @@ with tab_daily:
     daily_vedha = 100.0
     daily_net = (daily_chancha * 0.60) + (daily_dasha * 0.30) + (daily_vedha * 0.10)
 
-    st.markdown(f"**Chandra Gochar Sthiti:** {RASHI_NAMES[m_s]} (BAV: {m_bav}/8, SAV: {m_sav})")
+    st.markdown(f"*Chandra Gochar Sthiti:* {RASHI_NAMES[m_s]} (BAV: {m_bav}/8, SAV: {m_sav})")
     dc1, dc2, dc3, dc4 = st.columns(4)
     dc1.metric("60% Chancha Score", f"{daily_chancha:.1f} / 100")
     dc2.metric("30% Dasha Score", f"{daily_dasha:.1f} / 100")
-    dc3.
+    dc3.metric("10% Vedha/Kakshya", f"{daily_vedha:.0f} / 100")
+    dc4.metric("Daily Net Score", f"{daily_net:.1f}", delta="Shubh" if daily_net >= 65 else "Samanya")
+
+with tab_monthly:
+    fast_signs = [g_sun - 1, g_mercury - 1, g_venus - 1, g_mars - 1]
+    fast_planets = ["Sun", "Mercury", "Venus", "Mars"]
+    sum_b = sum(sum(bav_matrices[p][k][s] for k in KAKSHYAS) for p, s in zip(fast_planets, fast_signs))
+    avg_b = sum_b / 4.0
+    monthly_chancha = (avg_b / 8.0) * 100
+    monthly_net = (monthly_chancha * 0.60) + (72.0 * 0.30) + (100.0 * 0.10)
+
+    st.markdown(f"*Surya-Budh-Shukra-Mangal Sareti BAV:* {avg_b:.1f} / 8")
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("60% Chancha Score", f"{monthly_chancha:.1f} / 100")
+    mc2.metric("30% Dasha Score", "72.0 / 100")
+    mc3.metric("10% Vedha/Kakshya", "100 / 100")
+    mc4.metric("Monthly Net Score", f"{monthly_net:.1f}", delta="Shubh" if monthly_net >= 65 else "Samanya")
+
+with tab_yearly:
+    sat_s = g_saturn - 1
+    jup_s = g_jupiter - 1
+    yearly_sav_avg = (sav_scores[sat_s] + sav_scores[jup_s]) / 2.0
+    yearly_chancha = max(0, min(100, ((yearly_sav_avg - 18) / 22.0) * 100))
+    yearly_net = (yearly_chancha * 0.60) + (72.0 * 0.30) + (100.0 * 0.10)
+
+    st.markdown(f"*Shani & Guru SAV Average:* {yearly_sav_avg:.1f} / 48")
+    yc1, yc2, yc3, yc4 = st.columns(4)
+    yc1.metric("60% Chancha Score", f"{yearly_chancha:.1f} / 100")
+    yc2.metric("30% Dasha Score", "72.0 / 100")
+    yc3.metric("10% Vedha/Kakshya", "100 / 100")
+    yc4.metric("Annual Net Score", f"{yearly_net:.1f}", delta="Shubh" if yearly_net >= 65 else "Samanya")
+
+st.divider()
+
+st.subheader("4. Shani & Guru Mega Transits Dashboard")
+col_sat, col_jup = st.columns(2)
+
+with col_sat:
+    sat_bav_val = sum(bav_matrices["Saturn"][k][g_saturn - 1] for k in KAKSHYAS)
+    sat_sav_val = sav_scores[g_saturn - 1]
+    st.markdown(f"*Shani Gochar: {RASHI_NAMES[g_saturn - 1]} (SAV: {sat_sav_val})*")
+    if sat_bav_val >= 4 and sat_sav_val >= 28:
+        st.success(f"Anukul BAV: {sat_bav_val}/8 — Shani Maharaj jameen, makan, property ke career ma sthayi faydo karavshe.")
+    else:
+        st.error(f"Savcheti BAV: {sat_bav_val}/8 — Arogya ane financial nirnayo ma savadhani rakhvi.")
+
+with col_jup:
+    jup_bav_val = sum(bav_matrices["Jupiter"][k][g_jupiter - 1] for k in KAKSHYAS)
+    jup_sav_val = sav_scores[g_jupiter - 1]
+    prob_j = min(98, max(25, int(((jup_bav_val * 5 + jup_sav_val) / 78.0) * 100)))
+    st.markdown(f"*Guru Gochar: {RASHI_NAMES[g_jupiter - 1]} (SAV: {jup_sav_val})*")
+    st.write(f"Bhagyodaya Sambhavna: *{prob_j}%* (BAV: {jup_bav_val}/8)")
+    st.progress(prob_j / 100.0)
+
+st.divider()
+
+st.subheader("5. Bhinnashtakavarga (BAV) Table")
+sel_planet = st.selectbox("Select Planet for BAV", main_planets, index=0)
+
+rows = []
+for k in KAKSHYAS:
+    row_data = [KAKSHYA_LABELS[k]] + bav_matrices[sel_planet][k]
+    rows.append(row_data)
+
+col_headers = ["Kakshya"] + [f"{i+1}. {RASHI_NAMES[i].split()[0]}" for i in range(12)]
+df = pd.DataFrame(rows, columns=col_headers)
+
+bav_sums = ["BAV Total"]
+for s in range(12):
+    bav_sums.append(sum(bav_matrices[sel_planet][k][s] for k in KAKSHYAS))
+df.loc[len(df)] = bav_sums
+
+st.dataframe(df, use_container_width=True, hide_index=True)
+st.caption(f"Sarvashtakavarga (SAV) Total Bindus: {sum(sav_scores)} / 337")
