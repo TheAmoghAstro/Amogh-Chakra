@@ -128,7 +128,7 @@ st.title("Amogh Chakra System")
 st.caption("100% Automatic Ephemeris Engine • Parashari BAV/SAV • Mega Transits • Timeline")
 
 st.sidebar.header("1. Birth Details (Automatic)")
- dob_val = st.sidebar.date_input("Date of Birth", value=datetime.date(1976, 11, 16), min_value=datetime.date(1900, 1, 1), max_value=datetime.date(2100, 12, 31))
+dob_val = st.sidebar.date_input("Date of Birth", value=datetime.date(1976, 11, 16), min_value=datetime.date(1900, 1, 1), max_value=datetime.date(2100, 12, 31))
 tob_val = st.sidebar.time_input("Time of Birth", datetime.time(12, 50))
 city_coords = {
     "Ahmedabad": (23.0225, 72.5714),
