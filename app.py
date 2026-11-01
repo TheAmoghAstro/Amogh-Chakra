@@ -131,7 +131,6 @@ st.sidebar.header("1. Birth Details (Automatic)")
     min_value=datetime.date(1900, 1, 1),
     max_value=datetime.date(2100, 12, 31)
 tob_val = st.sidebar.time_input("Time of Birth", datetime.time(12, 50))
-
 city_coords = {
     "Ahmedabad": (23.0225, 72.5714),
     "Vadodara": (22.3072, 73.1812),
