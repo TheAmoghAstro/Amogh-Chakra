@@ -2,8 +2,9 @@ import streamlit as st
 import datetime
 import math
 import pandas as pd
+import ephem
 
-st.set_page_config(page_title="Amogh Chakra • Professional Astro Engine", layout="wide")
+st.set_page_config(page_title="Amogh Chakra • Professional Engine", layout="wide")
 
 RASHI_NAMES = [
     "Mesha (1)", "Vrishabha (2)", "Mithuna (3)", "Karka (4)",
@@ -17,7 +18,6 @@ KAKSHYA_LABELS = {
     "Venus": "Shukra", "Mercury": "Budh", "Moon": "Chandra", "Lagna": "Lagna"
 }
 
-# Parashari Benefic House Rules
 BAV_RULES = {
     "Sun": {
         "Sun": [1,2,4,7,8,9,10,11], "Moon": [3,6,10,11], "Mars": [1,2,4,7,8,9,10,11],
@@ -56,72 +56,79 @@ BAV_RULES = {
     }
 }
 
-BENCHMARK_EXACT = {
-    "Lagna": {"sign": 7, "deg": 22, "min": 0, "sign_name": "Tula"},
-    "Sun": {"sign": 7, "deg": 5, "min": 0, "sign_name": "Tula"},
-    "Moon": {"sign": 8, "deg": 18, "min": 0, "sign_name": "Vrishchika"},
-    "Mars": {"sign": 10, "deg": 29, "min": 0, "sign_name": "Makara"},
-    "Mercury": {"sign": 7, "deg": 17, "min": 0, "sign_name": "Tula"},
-    "Jupiter": {"sign": 8, "deg": 16, "min": 0, "sign_name": "Vrishchika"},
-    "Venus": {"sign": 7, "deg": 22, "min": 0, "sign_name": "Tula"},
-    "Saturn": {"sign": 2, "deg": 12, "min": 0, "sign_name": "Vrishabha"},
-    "Rahu": {"sign": 10, "deg": 17, "min": 0, "sign_name": "Makara"},
-    "Ketu": {"sign": 4, "deg": 17, "min": 0, "sign_name": "Karka"}
-}
+# Accurate Astronomical Ephemeris Engine (Vedic Lahiri)
+def get_ephem_chart(dob, tob, lat, lon):
+    # Convert IST to UTC
+    dt_local = datetime.datetime.combine(dob, tob)
+    dt_utc = dt_local - datetime.timedelta(hours=5, minutes=30)
+    
+    observer = ephem.Observer()
+    observer.lat = str(lat)
+    observer.lon = str(lon)
+    observer.date = dt_utc.strftime("%Y/%m/%d %H:%M:%S")
+    observer.pressure = 0
+    observer.epoch = ephem.J2000
 
-def calculate_astronomical(dob, tob, lat, lon):
-    if dob == datetime.date(1971, 10, 23) and tob.hour == 7 and tob.minute == 55:
-        return BENCHMARK_EXACT
+    # High precision Lahiri Ayanamsha (Chitra Paksha)
+    t = (ephem.julian_date(observer.date) - 2451545.0) / 36525.0
+    ayanamsha_deg = 23.85694 + 1.396042 * t + 0.000308 * (t ** 2)
 
-    y, m, d = dob.year, dob.month, dob.day
-    if m <= 2:
-        y -= 1
-        m += 12
-    hr_utc = tob.hour + tob.minute / 60.0 - 5.5
-    jd = math.floor(365.25 * (y + 4716)) + math.floor(30.6001 * (m + 1)) + d + (hr_utc / 24.0) - 1524.5
-    T = (jd - 2451545.0) / 36525.0
-    ayan = 23.85694 + 1.396042 * T
+    def to_nirayana(ecl_lon_deg):
+        nir = (ecl_lon_deg - ayanamsha_deg) % 360.0
+        sign_idx = int(nir // 30) + 1
+        rem = nir % 30.0
+        deg = int(rem)
+        minute = int((rem - deg) * 60)
+        return {
+            "sign": sign_idx,
+            "deg": deg,
+            "min": minute,
+            "sign_name": RASHI_NAMES[sign_idx - 1].split()[0]
+        }
 
-    def norm(deg):
-        nir = ((deg - ayan) % 360 + 360) % 360
-        s = int(nir // 30) + 1
-        rem = nir % 30
-        return {"sign": s, "deg": int(rem), "min": int((rem - int(rem)) * 60), "sign_name": RASHI_NAMES[s - 1].split()[0]}
+    # Lagna (Ascendant) Calculation
+    sidereal_time_rad = observer.sidereal_time()
+    eps_rad = math.radians(23.4392911 - 0.0130042 * t)
+    lat_rad = math.radians(lat)
+    y_asc = -math.cos(sidereal_time_rad)
+    x_asc = math.sin(sidereal_time_rad) * math.cos(eps_rad) + math.tan(lat_rad) * math.sin(eps_rad)
+    asc_deg = (math.degrees(math.atan2(y_asc, x_asc)) + 360.0) % 360.0
 
-    gmst = (280.4606 + 360.9856473 * (jd - 2451545.0)) % 360
-    ramc = (gmst + lon) % 360
-    eps = (23.439 - 0.013 * T) * math.pi / 180.0
-    asc = math.atan2(-math.cos(ramc * math.pi / 180), math.sin(ramc * math.pi / 180) * math.cos(eps) + math.tan(lat * math.pi / 180) * math.sin(eps)) * 180.0 / math.pi
+    natal = {"Lagna": to_nirayana(asc_deg)}
 
-    res = {
-        "Lagna": norm(asc),
-        "Sun": norm(280.466 + 36000.7698 * T),
-        "Moon": norm(218.316 + 481267.881 * T),
-        "Mars": norm(355.433 + 19140.299 * T),
-        "Mercury": norm(252.250 + 149472.674 * T),
-        "Jupiter": norm(34.351 + 3034.905 * T),
-        "Venus": norm(181.979 + 58517.815 * T),
-        "Saturn": norm(50.077 + 1222.113 * T),
-        "Rahu": norm(125.044 - 1934.136 * T)
+    bodies = {
+        "Sun": ephem.Sun(observer),
+        "Moon": ephem.Moon(observer),
+        "Mars": ephem.Mars(observer),
+        "Mercury": ephem.Mercury(observer),
+        "Jupiter": ephem.Jupiter(observer),
+        "Venus": ephem.Venus(observer),
+        "Saturn": ephem.Saturn(observer)
     }
-    k_tot = ((res["Rahu"]["sign"] - 1) * 30 + res["Rahu"]["deg"] + 180) % 360
-    ks = int(k_tot // 30) + 1
-    res["Ketu"] = {"sign": ks, "deg": int(k_tot % 30), "min": res["Rahu"]["min"], "sign_name": RASHI_NAMES[ks - 1].split()[0]}
-    return res
+
+    for name, body in bodies.items():
+        ecl = ephem.Ecliptic(body)
+        lon_deg = math.degrees(ecl.lon) % 360.0
+        natal[name] = to_nirayana(lon_deg)
+
+    # Rahu & Ketu (Mean Node)
+    d = ephem.julian_date(observer.date) - 2451545.0
+    omega = (125.04452 - 1934.136261 * (d / 36525.0)) % 360.0
+    natal["Rahu"] = to_nirayana(omega)
+    natal["Ketu"] = to_nirayana((omega + 180.0) % 360.0)
+
+    return natal
 
 st.title("Amogh Chakra System")
-st.caption("Authentic Parashari Engine • 60:30:10 Weightage • Timeline Predictions • Mega Transits")
+st.caption("100% Automatic Ephemeris Engine • Parashari BAV/SAV • Mega Transits • Timeline")
 
-# Sidebar Configuration
-st.sidebar.header("1. Birth Details & Input Mode")
-input_mode = st.sidebar.radio("Graha Input Mode", ["Automatic Calculation", "Certified Manual Override (100% Accurate)"])
-
-dob_input = st.sidebar.date_input("Date of Birth", datetime.date(1971, 10, 23))
-tob_input = st.sidebar.time_input("Time of Birth", datetime.time(7, 55))
+st.sidebar.header("1. Birth Details (Automatic)")
+dob_val = st.sidebar.date_input("Date of Birth", datetime.date(1976, 11, 16))
+tob_val = st.sidebar.time_input("Time of Birth", datetime.time(11, 50))
 
 city_coords = {
-    "Vadodara": (22.3072, 73.1812),
     "Ahmedabad": (23.0225, 72.5714),
+    "Vadodara": (22.3072, 73.1812),
     "Surat": (21.1702, 72.8311),
     "Rajkot": (22.3039, 70.8022),
     "Bhavnagar": (21.7645, 72.1519),
@@ -130,27 +137,12 @@ city_coords = {
 selected_city = st.sidebar.selectbox("Place of Birth", list(city_coords.keys()), index=0)
 lat, lon = city_coords[selected_city]
 
-# Manual Graha Override options if user selects Manual mode
-manual_natal = {}
-if input_mode == "Certified Manual Override (100% Accurate)":
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Set Exact Graha Rashis (1-12)")
-    planet_keys = ["Lagna", "Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
-    default_signs = {"Lagna": 7, "Sun": 7, "Moon": 8, "Mars": 10, "Mercury": 7, "Jupiter": 8, "Venus": 7, "Saturn": 2, "Rahu": 10, "Ketu": 4}
-    for p in planet_keys:
-        s_val = st.sidebar.selectbox(f"{p} Rashi", range(1, 13), index=default_signs[p] - 1, key=f"m_{p}")
-        manual_natal[p] = {"sign": s_val, "deg": 15, "min": 0, "sign_name": RASHI_NAMES[s_val - 1].split()[0]}
+calc_btn = st.sidebar.button("Kundali Gano (Calculate)", type="primary")
 
-accept_btn = st.sidebar.button("Kundali Gano / Accept Details", type="primary")
+# Automatic calculation
+natal = get_ephem_chart(dob_val, tob_val, lat, lon)
 
-# Compute or assign natal data
-if input_mode == "Certified Manual Override (100% Accurate)":
-    natal = manual_natal
-else:
-    natal = calculate_astronomical(dob_input, tob_input, lat, lon)
-
-# Display Natal Table
-st.subheader("1. Spashta Graha Sthiti (Birth Chart Positions)")
+st.subheader("1. Automatic Spashta Graha Sthiti")
 cols = st.columns(5)
 planet_order = ["Lagna", "Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
 labels = {"Lagna":"Lagna", "Sun":"Surya", "Moon":"Chandra", "Mars":"Mangal", "Mercury":"Budh", "Jupiter":"Guru", "Venus":"Shukra", "Saturn":"Shani", "Rahu":"Rahu", "Ketu":"Ketu"}
@@ -184,10 +176,8 @@ for s in range(12):
 
 st.divider()
 
-# Section 2: Manual Transit (Gochar) Selection
+# Section 2: Gochar Selection
 st.subheader("2. Live / Manual Gochar (Transit) Selection")
-st.write("Potana hisabe grah nu gochar pasand karo ane live score check karo:")
-
 t_cols1 = st.columns(4)
 t_cols2 = st.columns(4)
 
@@ -211,9 +201,8 @@ with t_cols2[3]:
 
 st.divider()
 
-# Section 3: 60:30:10 Weightage & Timeline Tabs
+# Section 3: Predictions
 st.subheader("3. 60:30:10 Weightage & Timeline Predictions")
-
 tab_daily, tab_monthly, tab_yearly = st.tabs(["📅 Daily Prediction", "🌙 Monthly Prediction", "🗓️ Annual / Yearly Prediction"])
 
 with tab_daily:
@@ -225,13 +214,12 @@ with tab_daily:
     daily_vedha = 100.0
     daily_net = (daily_chancha * 0.60) + (daily_dasha * 0.30) + (daily_vedha * 0.10)
 
-    st.markdown(f"*Chandra Gochar Sthiti:* {RASHI_NAMES[m_s]} (BAV: {m_bav}/8, SAV: {m_sav})")
+    st.markdown(f"**Chandra Gochar Sthiti:** {RASHI_NAMES[m_s]} (BAV: {m_bav}/8, SAV: {m_sav})")
     dc1, dc2, dc3, dc4 = st.columns(4)
     dc1.metric("60% Chancha Score", f"{daily_chancha:.1f} / 100")
     dc2.metric("30% Dasha Score", f"{daily_dasha:.1f} / 100")
     dc3.metric("10% Vedha/Kakshya", f"{daily_vedha:.0f} / 100")
     dc4.metric("Daily Net Score", f"{daily_net:.1f}", delta="Shubh" if daily_net >= 65 else "Samanya")
-    st.info("Daily prediction chandra na gochar rashi, tenu BAV ane SAV bindu na aadhare thay chhe.")
 
 with tab_monthly:
     fast_signs = [g_sun - 1, g_mercury - 1, g_venus - 1, g_mars - 1]
@@ -241,13 +229,12 @@ with tab_monthly:
     monthly_chancha = (avg_b / 8.0) * 100
     monthly_net = (monthly_chancha * 0.60) + (72.0 * 0.30) + (100.0 * 0.10)
 
-    st.markdown(f"*Surya-Budh-Shukra-Mangal Sareti BAV:* {avg_b:.1f} / 8")
+    st.markdown(f"**Surya-Budh-Shukra-Mangal Sareti BAV:** {avg_b:.1f} / 8")
     mc1, mc2, mc3, mc4 = st.columns(4)
     mc1.metric("60% Chancha Score", f"{monthly_chancha:.1f} / 100")
     mc2.metric("30% Dasha Score", "72.0 / 100")
     mc3.metric("10% Vedha/Kakshya", "100 / 100")
     mc4.metric("Monthly Net Score", f"{monthly_net:.1f}", delta="Shubh" if monthly_net >= 65 else "Samanya")
-    st.info("Monthly prediction surya, budh, shukra ane mangal na samanyik gochar baval par nirbhar kare chhe.")
 
 with tab_yearly:
     sat_s = g_saturn - 1
@@ -256,13 +243,12 @@ with tab_yearly:
     yearly_chancha = max(0, min(100, ((yearly_sav_avg - 18) / 22.0) * 100))
     yearly_net = (yearly_chancha * 0.60) + (72.0 * 0.30) + (100.0 * 0.10)
 
-    st.markdown(f"*Shani & Guru SAV Average:* {yearly_sav_avg:.1f} / 48")
+    st.markdown(f"**Shani & Guru SAV Average:** {yearly_sav_avg:.1f} / 48")
     yc1, yc2, yc3, yc4 = st.columns(4)
     yc1.metric("60% Chancha Score", f"{yearly_chancha:.1f} / 100")
     yc2.metric("30% Dasha Score", "72.0 / 100")
     yc3.metric("10% Vedha/Kakshya", "100 / 100")
     yc4.metric("Annual Net Score", f"{yearly_net:.1f}", delta="Shubh" if yearly_net >= 65 else "Samanya")
-    st.info("Yearly prediction shani ane guru na dirghakalin gochar SAV binduo par adharit chhe.")
 
 st.divider()
 
@@ -273,7 +259,7 @@ col_sat, col_jup = st.columns(2)
 with col_sat:
     sat_bav_val = sum(bav_matrices["Saturn"][k][g_saturn - 1] for k in KAKSHYAS)
     sat_sav_val = sav_scores[g_saturn - 1]
-    st.markdown(f"*🪐 Shani Gochar: {RASHI_NAMES[g_saturn - 1]} (SAV: {sat_sav_val})*")
+    st.markdown(f"**🪐 Shani Gochar: {RASHI_NAMES[g_saturn - 1]} (SAV: {sat_sav_val})**")
     if sat_bav_val >= 4 and sat_sav_val >= 28:
         st.success(f"Anukul BAV: {sat_bav_val}/8 — Shani Maharaj jameen, makan, property ke career ma sthayi faydo karavshe.")
     else:
@@ -283,13 +269,13 @@ with col_jup:
     jup_bav_val = sum(bav_matrices["Jupiter"][k][g_jupiter - 1] for k in KAKSHYAS)
     jup_sav_val = sav_scores[g_jupiter - 1]
     prob_j = min(98, max(25, int(((jup_bav_val * 5 + jup_sav_val) / 78.0) * 100)))
-    st.markdown(f"*✨ Guru Gochar: {RASHI_NAMES[g_jupiter - 1]} (SAV: {jup_sav_val})*")
-    st.write(f"Bhagyodaya Sambhavna: *{prob_j}%* (BAV: {jup_bav_val}/8)")
+    st.markdown(f"**✨ Guru Gochar: {RASHI_NAMES[g_jupiter - 1]} (SAV: {jup_sav_val})**")
+    st.write(f"Bhagyodaya Sambhavna: **{prob_j}%** (BAV: {jup_bav_val}/8)")
     st.progress(prob_j / 100.0)
 
 st.divider()
 
-# Section 5: BAV & SAV Matrix
+# Section 5: BAV Table
 st.subheader("5. Bhinnashtakavarga (BAV) Table")
 sel_planet = st.selectbox("Select Planet for BAV", main_planets, index=0)
 
