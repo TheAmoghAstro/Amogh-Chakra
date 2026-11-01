@@ -5,7 +5,35 @@ import pandas as pd
 import ephem
 
 st.set_page_config(page_title="Amogh Chakra • Certified Engine", layout="wide")
+# --- PASSWORD PROTECTION GATE ---
+def check_password():
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
 
+    if st.session_state["authenticated"]:
+        return True
+
+    st.sidebar.title("🔐 Login / Authentication")
+    user_pass = st.sidebar.text_input("Enter Password", type="password")
+    
+    # Tamaro manpasand password ahi set karo (udaharana tarike: "Amogh@123")
+    CORRECT_PASSWORD = "Amogh@123"
+
+    if st.sidebar.button("Login", type="primary"):
+        if user_pass == CORRECT_PASSWORD:
+            st.session_state["authenticated"] = True
+            st.sidebar.success("Login Successful!")
+            st.rerun()
+        else:
+            st.sidebar.error("Khoto Password! Krupya sacho password nakho.")
+    
+    return False
+
+# Jo password na nakhyo hoy to app ahi j aatki jashe
+if not check_password():
+    st.info("Krupya app access karva mate sidebar ma sacho password enter karo.")
+    st.stop()
+# --------------------------------
 RASHI_NAMES = [
     "Mesha (1)", "Vrishabha (2)", "Mithuna (3)", "Karka (4)",
     "Simha (5)", "Kanya (6)", "Tula (7)", "Vrishchika (8)",
